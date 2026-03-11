@@ -154,13 +154,21 @@ export default function InterviewPage() {
             {session.roleTitle} at {session.companyName}
           </span>
           <span className="text-xs text-slate-500">•</span>
-          <span className={`text-xs px-1.5 py-0.5 rounded-full ${
-            session.aiModel === 'gemini'
-              ? 'bg-purple-500/20 text-purple-400'
-              : 'bg-blue-500/20 text-blue-400'
-          }`}>
-            {session.aiModel === 'gemini' ? 'Gemini' : 'GPT-4o'}
-          </span>
+          {(() => {
+            const displayModel = streaming.activeModel || session.aiModel;
+            const isFallback = streaming.activeModel && streaming.activeModel !== session.aiModel;
+            const isGemini = displayModel === 'gemini';
+            return (
+              <span className={`text-xs px-1.5 py-0.5 rounded-full ${
+                isGemini
+                  ? 'bg-purple-500/20 text-purple-400'
+                  : 'bg-blue-500/20 text-blue-400'
+              }`}>
+                {isGemini ? 'Gemini' : 'GPT-4o'}
+                {isFallback && ' (fallback)'}
+              </span>
+            );
+          })()}
         </div>
         <button
           onClick={() => router.push('/setup')}
