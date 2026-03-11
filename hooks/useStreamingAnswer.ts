@@ -1,12 +1,13 @@
 'use client';
 
 import { useState, useCallback, useRef } from 'react';
+import { AIModel } from '@/lib/types';
 
 interface StreamingAnswerHook {
   answer: string;
   isStreaming: boolean;
   error: string | null;
-  streamAnswer: (question: string, systemPrompt: string) => Promise<string>;
+  streamAnswer: (question: string, systemPrompt: string, aiModel?: AIModel) => Promise<string>;
   resetAnswer: () => void;
 }
 
@@ -17,7 +18,7 @@ export function useStreamingAnswer(): StreamingAnswerHook {
   const abortRef = useRef<AbortController | null>(null);
 
   const streamAnswer = useCallback(
-    async (question: string, systemPrompt: string): Promise<string> => {
+    async (question: string, systemPrompt: string, aiModel: AIModel = 'gpt-4o'): Promise<string> => {
       // Abort any previous stream
       if (abortRef.current) {
         abortRef.current.abort();
@@ -32,8 +33,11 @@ export function useStreamingAnswer(): StreamingAnswerHook {
 
       let fullAnswer = '';
 
+      // Route to correct API based on model choice
+      const endpoint = aiModel === 'gemini' ? '/api/answer-gemini' : '/api/answer';
+
       try {
-        const response = await fetch('/api/answer', {
+        const response = await fetch(endpoint, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ question, systemPrompt }),

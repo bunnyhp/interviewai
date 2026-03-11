@@ -5,6 +5,7 @@ import { useSession } from '@/store/sessionStore';
 import { buildSystemPrompt } from '@/lib/buildSystemPrompt';
 import { trimResume, trimJobDescription } from '@/lib/trimContext';
 import { useRouter } from 'next/navigation';
+import { AIModel } from '@/lib/types';
 
 export default function SetupForm() {
   const router = useRouter();
@@ -14,6 +15,7 @@ export default function SetupForm() {
   const [jobDescription, setJobDescription] = useState('');
   const [roleTitle, setRoleTitle] = useState('');
   const [companyName, setCompanyName] = useState('');
+  const [aiModel, setAiModel] = useState<AIModel>('gpt-4o');
   const [isLoading, setIsLoading] = useState(false);
   const [loadingText, setLoadingText] = useState('');
   const [pdfError, setPdfError] = useState('');
@@ -142,6 +144,7 @@ export default function SetupForm() {
         companyName: companyName.trim(),
         companyResearch,
         systemPrompt: '',
+        aiModel,
       };
 
       sessionCtx.systemPrompt = buildSystemPrompt(sessionCtx);
@@ -245,6 +248,49 @@ export default function SetupForm() {
           className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-150"
           required
         />
+      </div>
+
+      {/* AI Model Selector */}
+      <div>
+        <label htmlFor="aiModel" className="block text-sm font-medium text-slate-300 mb-2">
+          AI Model
+        </label>
+        <div className="grid grid-cols-2 gap-3">
+          <button
+            type="button"
+            onClick={() => setAiModel('gpt-4o')}
+            className={`flex items-center gap-3 px-4 py-3 rounded-xl border transition-all duration-150 ${
+              aiModel === 'gpt-4o'
+                ? 'bg-blue-500/10 border-blue-500 text-white'
+                : 'bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-600'
+            }`}
+          >
+            <div className={`w-3 h-3 rounded-full ${
+              aiModel === 'gpt-4o' ? 'bg-blue-500' : 'bg-slate-600'
+            }`} />
+            <div className="text-left">
+              <div className="text-sm font-medium">GPT-4o</div>
+              <div className="text-xs text-slate-500">OpenAI</div>
+            </div>
+          </button>
+          <button
+            type="button"
+            onClick={() => setAiModel('gemini')}
+            className={`flex items-center gap-3 px-4 py-3 rounded-xl border transition-all duration-150 ${
+              aiModel === 'gemini'
+                ? 'bg-purple-500/10 border-purple-500 text-white'
+                : 'bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-600'
+            }`}
+          >
+            <div className={`w-3 h-3 rounded-full ${
+              aiModel === 'gemini' ? 'bg-purple-500' : 'bg-slate-600'
+            }`} />
+            <div className="text-left">
+              <div className="text-sm font-medium">Gemini Flash</div>
+              <div className="text-xs text-slate-500">Google</div>
+            </div>
+          </button>
+        </div>
       </div>
 
       {/* Submit Button */}

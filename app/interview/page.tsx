@@ -24,6 +24,8 @@ export default function InterviewPage() {
   const [micState, setMicState] = useState<MicState>('idle');
   const [currentTranscript, setCurrentTranscript] = useState('');
   const [useWhisperMode, setUseWhisperMode] = useState(false);
+  const [manualQuestion, setManualQuestion] = useState('');
+  const [showManualInput, setShowManualInput] = useState(false);
 
   // Redirect to setup if no session context
   useEffect(() => {
@@ -60,7 +62,7 @@ export default function InterviewPage() {
 
       setMicState('processing');
 
-      const fullAnswer = await streaming.streamAnswer(question, session.systemPrompt);
+      const fullAnswer = await streaming.streamAnswer(question, session.systemPrompt, session.aiModel);
       setMicState('idle');
 
       if (fullAnswer) {
@@ -151,6 +153,14 @@ export default function InterviewPage() {
           <span className="text-xs text-slate-400 truncate max-w-[200px]">
             {session.roleTitle} at {session.companyName}
           </span>
+          <span className="text-xs text-slate-500">•</span>
+          <span className={`text-xs px-1.5 py-0.5 rounded-full ${
+            session.aiModel === 'gemini'
+              ? 'bg-purple-500/20 text-purple-400'
+              : 'bg-blue-500/20 text-blue-400'
+          }`}>
+            {session.aiModel === 'gemini' ? 'Gemini' : 'GPT-4o'}
+          </span>
         </div>
         <button
           onClick={() => router.push('/setup')}
@@ -211,6 +221,46 @@ export default function InterviewPage() {
             isListening={micState === 'listening'}
             onEdit={handleTranscriptEdit}
           />
+
+          {/* Manual text input fallback */}
+          <div className="w-full max-w-xl mt-4">
+            <button
+              type="button"
+              onClick={() => setShowManualInput(!showManualInput)}
+              className="text-xs text-slate-500 hover:text-slate-400 transition-colors duration-150 mx-auto block mb-2"
+            >
+              {showManualInput ? 'Hide text input' : 'Or type your question instead'}
+            </button>
+            {showManualInput && (
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (manualQuestion.trim() && micState === 'idle') {
+                    setCurrentTranscript(manualQuestion.trim());
+                    handleSubmitQuestion(manualQuestion.trim());
+                    setManualQuestion('');
+                  }
+                }}
+                className="flex gap-2"
+              >
+                <input
+                  type="text"
+                  value={manualQuestion}
+                  onChange={(e) => setManualQuestion(e.target.value)}
+                  placeholder="Type your interview question here..."
+                  className="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-500/50 transition-all duration-150"
+                  disabled={micState !== 'idle'}
+                />
+                <button
+                  type="submit"
+                  disabled={!manualQuestion.trim() || micState !== 'idle'}
+                  className="bg-blue-500 hover:bg-blue-600 disabled:bg-slate-700 disabled:text-slate-500 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all duration-150"
+                >
+                  Ask
+                </button>
+              </form>
+            )}
+          </div>
         </div>
       </div>
     </div>

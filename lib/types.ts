@@ -1,3 +1,5 @@
+export type AIModel = 'gpt-4o' | 'gemini';
+
 export interface SessionContext {
   resumeText: string;
   jobDescription: string;
@@ -5,6 +7,7 @@ export interface SessionContext {
   companyName: string;
   companyResearch: string;
   systemPrompt: string;
+  aiModel: AIModel;
 }
 
 export interface QAPair {
@@ -15,3 +18,4 @@ export interface QAPair {
 }
 
 export type MicState = 'idle' | 'listening' | 'processing' | 'streaming';
+
