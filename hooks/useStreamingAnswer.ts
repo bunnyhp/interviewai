@@ -45,7 +45,13 @@ export function useStreamingAnswer(): StreamingAnswerHook {
         });
 
         if (!response.ok) {
-          throw new Error(`API error: ${response.status}`);
+          let errorMsg = `API error: ${response.status}`;
+          try {
+            const errData = await response.json();
+            if (errData.details) errorMsg = `${errData.error || 'API error'}: ${errData.details}`;
+            else if (errData.error) errorMsg = errData.error;
+          } catch { /* ignore parse error */ }
+          throw new Error(errorMsg);
         }
 
         const reader = response.body?.getReader();
@@ -88,7 +94,14 @@ export function useStreamingAnswer(): StreamingAnswerHook {
           // Intentional abort — not an error
           return fullAnswer;
         }
-        setError('Something went wrong. Tap to try again.');
+        const errMsg = err instanceof Error ? err.message : 'Something went wrong';
+        if (errMsg.includes('429') || errMsg.toLowerCase().includes('rate')) {
+          setError('API rate limited. Wait a moment and try again, or switch models.');
+        } else if (errMsg.includes('API key')) {
+          setError('API key issue. Check your configuration.');
+        } else {
+          setError(`Something went wrong: ${errMsg}. Tap to try again.`);
+        }
         setIsStreaming(false);
         return fullAnswer;
       }
