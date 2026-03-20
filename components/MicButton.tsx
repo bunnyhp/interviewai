@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useCallback } from 'react';
 import { MicState } from '@/lib/types';
 
 interface MicButtonProps {
@@ -27,7 +27,7 @@ export default function MicButton({
       case 'streaming':
         return 'bg-blue-500/50 cursor-not-allowed';
       default:
-        return 'bg-slate-700 hover:bg-slate-600 shadow-lg shadow-slate-900/50';
+        return 'bg-slate-700 hover:bg-slate-600 active:bg-slate-500 shadow-lg shadow-slate-900/50';
     }
   };
 
@@ -70,29 +70,46 @@ export default function MicButton({
   const getLabel = () => {
     switch (state) {
       case 'listening':
-        return 'Listening...';
+        return isWhisperMode ? 'Tap to Stop' : 'Listening...';
       case 'processing':
         return 'Thinking...';
       case 'streaming':
         return 'Generating answer...';
       default:
-        return isWhisperMode ? 'Hold to Record' : 'Tap to Speak';
+        return 'Tap to Speak';
     }
   };
+
+  // Unified tap handler for both modes (tap-to-start/tap-to-stop)
+  const handleTap = useCallback(
+    (e: React.MouseEvent | React.TouchEvent) => {
+      e.preventDefault(); // Prevent double-fire on iOS (touch + click)
+
+      if (state === 'streaming') return;
+
+      if (isWhisperMode) {
+        if (state === 'idle' && onHoldStart) {
+          onHoldStart();
+        } else if (state === 'listening' && onHoldEnd) {
+          onHoldEnd();
+        }
+      } else {
+        onTap();
+      }
+    },
+    [state, isWhisperMode, onTap, onHoldStart, onHoldEnd]
+  );
 
   return (
     <div className="flex flex-col items-center gap-3">
       <button
         type="button"
-        onClick={!isWhisperMode ? onTap : undefined}
-        onMouseDown={isWhisperMode ? onHoldStart : undefined}
-        onMouseUp={isWhisperMode ? onHoldEnd : undefined}
-        onTouchStart={isWhisperMode ? onHoldStart : undefined}
-        onTouchEnd={isWhisperMode ? onHoldEnd : undefined}
+        onTouchEnd={handleTap}
+        onClick={handleTap}
         disabled={state === 'streaming'}
         className={`
           w-20 h-20 rounded-full flex items-center justify-center text-white
-          transition-all duration-150 ease-in-out
+          transition-all duration-150 ease-in-out select-none touch-none
           ${getButtonStyles()}
         `}
         aria-label={getLabel()}
