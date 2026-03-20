@@ -148,10 +148,33 @@ export default function SetupForm() {
       };
 
       sessionCtx.systemPrompt = buildSystemPrompt(sessionCtx);
-      setSession(sessionCtx);
 
-      // Step 4: Navigate to interview
-      router.push('/interview');
+      // Step 4: Save session to Redis
+      setLoadingText('Saving session...');
+      let sessionId = '';
+      try {
+        const saveRes = await fetch('/api/sessions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(sessionCtx),
+        });
+        if (saveRes.ok) {
+          const saveData = await saveRes.json();
+          sessionId = saveData.id;
+        }
+      } catch {
+        // Session will still work locally even if save fails
+        addWarning('Session could not be saved for cross-device access.');
+      }
+
+      setSession(sessionCtx, sessionId);
+
+      // Step 5: Navigate to interview
+      if (sessionId) {
+        router.push(`/interview?session=${sessionId}`);
+      } else {
+        router.push('/interview');
+      }
     } catch {
       setLoadingText('');
     } finally {

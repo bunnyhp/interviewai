@@ -1,6 +1,7 @@
 'use client';
 
 import SetupForm from '@/components/SetupForm';
+import Link from 'next/link';
 
 export default function SetupPage() {
   return (
@@ -17,6 +18,15 @@ export default function SetupPage() {
           <p className="text-slate-400 text-lg max-w-md mx-auto">
             Paste your resume and job details. Get personalized answers to any interview question.
           </p>
+          <Link
+            href="/sessions"
+            className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-blue-400 transition-colors duration-150 mt-3"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+            </svg>
+            View Past Sessions
+          </Link>
         </div>
 
         {/* Form */}
@@ -24,7 +34,7 @@ export default function SetupPage() {
 
         {/* Footer hint */}
         <p className="text-center text-slate-600 text-xs mt-8">
-          Your data stays in your browser. Nothing is stored on any server.
+          Sessions are saved so you can resume on any device.
         </p>
       </div>
     </main>

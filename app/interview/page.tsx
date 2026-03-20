@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useEffect, useState, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useEffect, useState, useCallback, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { v4 as uuidv4 } from 'uuid';
 import { useSession } from '@/store/sessionStore';
 import { useSpeechRecognition } from '@/hooks/useSpeechRecognition';
@@ -11,11 +11,12 @@ import MicButton from '@/components/MicButton';
 import AnswerDisplay from '@/components/AnswerDisplay';
 import TranscriptPreview from '@/components/TranscriptPreview';
 import SessionHistory from '@/components/SessionHistory';
-import { MicState } from '@/lib/types';
+import { MicState, AIModel } from '@/lib/types';
 
-export default function InterviewPage() {
+function InterviewContent() {
   const router = useRouter();
-  const { session, history, warnings, addQAPair } = useSession();
+  const searchParams = useSearchParams();
+  const { session, sessionId, history, warnings, addQAPair, setSession, setSessionId, setHistory } = useSession();
 
   const speech = useSpeechRecognition();
   const whisper = useWhisper();
@@ -26,13 +27,57 @@ export default function InterviewPage() {
   const [useWhisperMode, setUseWhisperMode] = useState(false);
   const [manualQuestion, setManualQuestion] = useState('');
   const [showManualInput, setShowManualInput] = useState(false);
+  const [isLoadingSession, setIsLoadingSession] = useState(false);
 
-  // Redirect to setup if no session context
+  // Load session from URL if not already in memory
   useEffect(() => {
-    if (!session) {
+    const urlSessionId = searchParams.get('session');
+
+    if (urlSessionId && !session) {
+      setIsLoadingSession(true);
+      fetch(`/api/sessions/${urlSessionId}`)
+        .then((res) => {
+          if (!res.ok) throw new Error('Session not found');
+          return res.json();
+        })
+        .then((data) => {
+          const s = data.session;
+          setSession(
+            {
+              resumeText: s.resumeText,
+              jobDescription: s.jobDescription,
+              roleTitle: s.roleTitle,
+              companyName: s.companyName,
+              companyResearch: s.companyResearch,
+              systemPrompt: s.systemPrompt,
+              aiModel: (s.aiModel as AIModel) || 'gpt-4o',
+            },
+            s.id
+          );
+
+          // Restore Q&A history
+          if (s.history && s.history.length > 0) {
+            const restored = s.history.map((h: { id: string; question: string; answer: string; timestamp: string }) => ({
+              id: h.id,
+              question: h.question,
+              answer: h.answer,
+              timestamp: new Date(h.timestamp),
+            }));
+            setHistory(restored);
+          }
+        })
+        .catch(() => {
+          router.push('/setup');
+        })
+        .finally(() => {
+          setIsLoadingSession(false);
+        });
+    } else if (!urlSessionId && !session) {
       router.push('/setup');
     }
-  }, [session, router]);
+    // Only run on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Detect Web Speech API support
   useEffect(() => {
@@ -66,18 +111,41 @@ export default function InterviewPage() {
       setMicState('idle');
 
       if (fullAnswer) {
-        addQAPair({
+        const pair = {
           id: uuidv4(),
           question,
           answer: fullAnswer,
           timestamp: new Date(),
-        });
+        };
+
+        addQAPair(pair);
+
+        // Persist Q&A to Redis
+        const currentSessionId = sessionId || searchParams.get('session');
+        if (currentSessionId) {
+          try {
+            await fetch(`/api/sessions/${currentSessionId}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                qaPair: {
+                  id: pair.id,
+                  question: pair.question,
+                  answer: pair.answer,
+                  timestamp: pair.timestamp.toISOString(),
+                },
+              }),
+            });
+          } catch {
+            // Silently fail — Q&A is still in local state
+          }
+        }
       }
 
       setCurrentTranscript('');
       speech.resetTranscript();
     },
-    [session, streaming, addQAPair, speech]
+    [session, sessionId, searchParams, streaming, addQAPair, speech]
   );
 
   // Update mic state based on streaming
@@ -89,7 +157,6 @@ export default function InterviewPage() {
 
   const handleMicTap = useCallback(() => {
     if (micState === 'listening') {
-      // Stop listening
       speech.stopListening();
       if (currentTranscript.trim()) {
         handleSubmitQuestion(currentTranscript.trim());
@@ -97,7 +164,6 @@ export default function InterviewPage() {
         setMicState('idle');
       }
     } else if (micState === 'idle') {
-      // Start listening
       setMicState('listening');
       setCurrentTranscript('');
       streaming.resetAnswer();
@@ -133,10 +199,19 @@ export default function InterviewPage() {
     [speech]
   );
 
-  if (!session) {
+  const handleCopySessionLink = useCallback(() => {
+    const currentId = sessionId || searchParams.get('session');
+    if (currentId) {
+      const url = `${window.location.origin}/interview?session=${currentId}`;
+      navigator.clipboard.writeText(url).catch(() => {});
+    }
+  }, [sessionId, searchParams]);
+
+  if (isLoadingSession || !session) {
     return (
-      <div className="min-h-screen bg-[#0f172a] flex items-center justify-center">
+      <div className="min-h-screen bg-[#0f172a] flex flex-col items-center justify-center gap-3">
         <div className="animate-spin h-8 w-8 border-2 border-blue-500 border-t-transparent rounded-full" />
+        <p className="text-sm text-slate-400">Loading session...</p>
       </div>
     );
   }
@@ -170,15 +245,40 @@ export default function InterviewPage() {
             );
           })()}
         </div>
-        <button
-          onClick={() => router.push('/setup')}
-          className="text-sm text-slate-400 hover:text-white transition-colors duration-150 flex items-center gap-1"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-          </svg>
-          New Session
-        </button>
+        <div className="flex items-center gap-3">
+          {/* Share button */}
+          {(sessionId || searchParams.get('session')) && (
+            <button
+              onClick={handleCopySessionLink}
+              className="text-sm text-slate-400 hover:text-white transition-colors duration-150 flex items-center gap-1"
+              title="Copy session link"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+              </svg>
+              Share
+            </button>
+          )}
+          {/* Sessions Dashboard */}
+          <button
+            onClick={() => router.push('/sessions')}
+            className="text-sm text-slate-400 hover:text-white transition-colors duration-150 flex items-center gap-1"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+            </svg>
+            Sessions
+          </button>
+          <button
+            onClick={() => router.push('/setup')}
+            className="text-sm text-slate-400 hover:text-white transition-colors duration-150 flex items-center gap-1"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            New
+          </button>
+        </div>
       </div>
 
       {/* Warnings */}
@@ -272,5 +372,19 @@ export default function InterviewPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function InterviewPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-[#0f172a] flex items-center justify-center">
+          <div className="animate-spin h-8 w-8 border-2 border-blue-500 border-t-transparent rounded-full" />
+        </div>
+      }
+    >
+      <InterviewContent />
+    </Suspense>
   );
 }
